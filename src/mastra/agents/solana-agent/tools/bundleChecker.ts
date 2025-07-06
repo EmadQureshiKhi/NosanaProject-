@@ -83,6 +83,40 @@ interface PreviousCoin {
   symbol: string;
 }
 
+// CHANGED: Added robust mint extraction helper
+function extractMintAddress(args: any): string | null {
+  let mintAddress =
+    args?.input?.mintAddress ||
+    args?.mintAddress ||
+    args?.context?.mintAddress ||
+    null;
+
+  if (typeof args === "string") {
+    mintAddress = args;
+  }
+
+  if (!mintAddress && args?.input) {
+    const inputStr = JSON.stringify(args.input);
+    const solanaAddressRegex = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
+    const matches = inputStr.match(solanaAddressRegex);
+
+    if (matches) {
+      mintAddress = matches.reduce((longest, current) =>
+        current.length > longest.length ? current : longest, ""
+      );
+    }
+  }
+
+  if (mintAddress && typeof mintAddress === "string") {
+    mintAddress = mintAddress.replace(/['"]/g, "").trim();
+    if (mintAddress.length >= 32 && mintAddress.length <= 44) {
+      return mintAddress;
+    }
+  }
+
+  return null;
+}
+
 // Helper function to get mint account info for decimals
 async function getMintAccountInfo(mintAddress: string) {
   try {
@@ -172,17 +206,79 @@ export const bundleChecker = createTool({
     bonded: z.boolean(),
     creatorRiskLevel: z.string(),
     rugCount: z.number(),
-    summary: z.string(),
+    summary: z.object({
+      bundleStatus: z.string(),
+      ticker: z.string(),
+      metrics: z.object({
+        totalBundles: z.number(),
+        totalSolSpent: z.string(),
+        bundledPercentage: z.string(),
+        heldPercentage: z.string(),
+        heldTokens: z.string(),
+        bonded: z.string(),
+      }),
+      creator: z.object({
+        address: z.string(),
+        riskLevel: z.string(),
+        currentHoldings: z.number(),
+        rugCount: z.number(),
+        previousCoins: z.number(),
+        holdingPercentage: z.string(),
+      }).nullable(),
+      bundles: z.array(z.object({
+        bundleNumber: z.number(),
+        uniqueWallets: z.number(),
+        totalTokens: z.string(),
+        totalSol: z.string(),
+        tokenPercentage: z.string(),
+        holdingPercentage: z.string(),
+        primaryCategory: z.string(),
+        isLikelyBundle: z.boolean(),
+        fundingAnalysis: z.object({
+          trustScore: z.string(),
+          cexFunded: z.string(),
+          mixerFunded: z.string(),
+        }).nullable(),
+        topWallets: z.array(z.object({
+          address: z.string(),
+          shortAddress: z.string(),
+          tokensBought: z.string(),
+          tokenPercentage: z.string(),
+          solSpent: z.string(),
+          solPercentage: z.string(),
+        })),
+      })),
+      distribution: z.object({
+        distributedAmount: z.string(),
+        distributedPercentage: z.string(),
+        distributedWallets: z.number(),
+        currentHoldingsInBundles: z.string(),
+        currentHoldingsPercentage: z.string(),
+      }).nullable(),
+      characteristics: z.object({
+        primaryCategory: z.string(),
+        bundleSizeRange: z.string(),
+        bundlePercentageRange: z.string(),
+        totalWalletsInBundles: z.number(),
+      }).nullable(),
+      assessment: z.object({
+        riskLevel: z.string(),
+        recommendation: z.string(),
+        keyFindings: z.array(z.string()),
+      }),
+      links: z.object({
+        trenchRadar: z.string(),
+        solscan: z.string(),
+      }),
+    }),
+    formattedSummary: z.string(),
   }),
   execute: async (args) => {
-    const mintAddress =
-      args?.input?.mintAddress ||
-      args?.mintAddress ||
-      args?.context?.mintAddress ||
-      (typeof args === "string" ? args : null);
+    // CHANGED: Use robust mint extraction
+    const mintAddress = extractMintAddress(args);
 
     if (!mintAddress) {
-      throw new Error("mintAddress is required");
+      throw new Error("mintAddress is required and must be a valid Solana address (32-44 characters)");
     }
 
     try {
@@ -190,6 +286,27 @@ export const bundleChecker = createTool({
       const response = await axios.get(`${TRENCH_API_BASE}/${mintAddress}`);
       
       if (!response.data) {
+        const errorSummary = `# 🔍 Bundle Analysis: Unknown
+
+## 📊 **Bundle Detection Summary**
+
+| Metric                | Value         |
+|-----------------------|--------------|
+| **Bundle Status**     | ❌ No Data |
+| **Ticker**            | Unknown     |
+| **Total Bundles**     | 0 |
+| **Total SOL Spent**   | 0 SOL |
+| **Bundled Total**     | 0% |
+| **Held Percentage**   | 0% |
+| **Bonded**            | No |
+
+## 🎯 **Final Assessment**
+
+⚠️ **Unable to fetch bundle data. Please make sure this is a pump.fun token.**
+
+**Mint Address:** \`${mintAddress}\`  
+**Analysis Source:** [TrenchRadar Bundle Analysis](https://trench.bot/bundles/${mintAddress}?all=true)`;
+
         return {
           isBundled: false,
           ticker: "Unknown",
@@ -200,7 +317,32 @@ export const bundleChecker = createTool({
           bonded: false,
           creatorRiskLevel: "Unknown",
           rugCount: 0,
-          summary: "Unable to fetch bundle data. Please make sure this is a pump.fun token.",
+          summary: {
+            bundleStatus: "❌ No Data",
+            ticker: "Unknown",
+            metrics: {
+              totalBundles: 0,
+              totalSolSpent: "0 SOL",
+              bundledPercentage: "0%",
+              heldPercentage: "0%",
+              heldTokens: "N/A",
+              bonded: "No",
+            },
+            creator: null,
+            bundles: [],
+            distribution: null,
+            characteristics: null,
+            assessment: {
+              riskLevel: "Unknown",
+              recommendation: "Unable to fetch bundle data. Please make sure this is a pump.fun token.",
+              keyFindings: ["No data available"],
+            },
+            links: {
+              trenchRadar: `https://trench.bot/bundles/${mintAddress}?all=true`,
+              solscan: `https://solscan.io/token/${mintAddress}`,
+            },
+          },
+          formattedSummary: errorSummary,
         };
       }
 
@@ -215,140 +357,170 @@ export const bundleChecker = createTool({
       // Determine if token is bundled
       const isBundled = analysis.total_bundles > 0 && analysis.total_percentage_bundled > 0;
 
-      // Build detailed summary
-      let summary = `# 🔍 Bundle Analysis: ${analysis.ticker?.toUpperCase() || 'Token'}\n\n`;
-      
-      // Main summary box
-      summary += `## 📊 **Bundle Detection Summary**\n\n`;
-      summary += `| Metric | Value |\n`;
-      summary += `|--------|-------|\n`;
-      summary += `| **Bundle Status** | ${isBundled ? '🚨 **BUNDLED**' : '✅ **Clean**'} |\n`;
-      summary += `| **Ticker** | ${analysis.ticker || 'N/A'} |\n`;
-      summary += `| **Total Bundles** | ${analysis.total_bundles || 0} |\n`;
-      summary += `| **Total SOL Spent** | ${analysis.total_sol_spent?.toFixed(2) || 0} SOL |\n`;
-      summary += `| **Bundled Total** | ${analysis.total_percentage_bundled?.toFixed(2) || 0}% |\n`;
-      summary += `| **Held Percentage** | ${analysis.total_holding_percentage?.toFixed(2) || 0}% |\n`;
-      summary += `| **Held Tokens** | ${analysis.total_holding_amount ? formatNumber(analysis.total_holding_amount) : 'N/A'} |\n`;
-      summary += `| **Bonded** | ${analysis.bonded ? 'Yes' : 'No'} |\n`;
-      summary += `| **Source** | [TrenchRadar](https://trench.bot/bundles/${mintAddress}?all=true) |\n\n`;
+      // Process bundle entries (sorted by SOL spent, limited to 10)
+      const bundleEntries = Object.entries(analysis.bundles || {})
+        .sort(([,a], [,b]) => (b.total_sol || 0) - (a.total_sol || 0))
+        .slice(0, 10);
 
-      // Creator analysis
-      if (analysis.creator_analysis) {
-        const creator = analysis.creator_analysis;
-        summary += `## 👤 **Creator Analysis**\n\n`;
-        summary += `| Metric | Value |\n`;
-        summary += `|--------|-------|\n`;
-        summary += `| **Creator Address** | \`${creator.address}\` |\n`;
-        summary += `| **Risk Level** | ${creator.risk_level || 'Unknown'} |\n`;
-        summary += `| **Current Holdings** | ${creator.current_holdings || 0} tokens |\n`;
-        
-        if (creator.history) {
-          summary += `| **Previous Coins Created** | ${creator.history.total_coins_created || 0} |\n`;
-          summary += `| **Rug History** | ${creator.history.rug_count || 0} rugs |\n`;
-          summary += `| **Current Holdings** | ${creator.holding_percentage?.toFixed(2) || 0}% |\n`;
-        }
-        summary += `\n`;
-      }
+      // Build structured summary
+      const structuredSummary = {
+        bundleStatus: isBundled ? "🚨 BUNDLED" : "✅ Clean",
+        ticker: analysis.ticker || "Unknown",
+        metrics: {
+          totalBundles: analysis.total_bundles || 0,
+          totalSolSpent: `${analysis.total_sol_spent?.toFixed(2) || 0} SOL`,
+          bundledPercentage: `${analysis.total_percentage_bundled?.toFixed(2) || 0}%`,
+          heldPercentage: `${analysis.total_holding_percentage?.toFixed(2) || 0}%`,
+          heldTokens: analysis.total_holding_amount ? formatNumber(analysis.total_holding_amount) : "N/A",
+          bonded: analysis.bonded ? "Yes" : "No",
+        },
+        creator: analysis.creator_analysis ? {
+          address: analysis.creator_analysis.address,
+          riskLevel: analysis.creator_analysis.risk_level || "Unknown",
+          currentHoldings: analysis.creator_analysis.current_holdings || 0,
+          rugCount: analysis.creator_analysis.history?.rug_count || 0,
+          previousCoins: analysis.creator_analysis.history?.total_coins_created || 0,
+          holdingPercentage: `${analysis.creator_analysis.holding_percentage?.toFixed(2) || 0}%`,
+        } : null,
+        bundles: bundleEntries.map(([bundleId, bundle], index) => {
+          // Get top 3 wallets for this bundle
+          const topWallets = Object.entries(bundle.wallet_info || {})
+            .sort(([,a], [,b]) => (b.sol || 0) - (a.sol || 0))
+            .slice(0, 3)
+            .map(([walletAddress, walletData]) => ({
+              address: walletAddress,
+              shortAddress: shortenAddress(walletAddress),
+              tokensBought: formatNumber(walletData.tokens),
+              tokenPercentage: `${walletData.token_percentage?.toFixed(2) || 0}%`,
+              solSpent: `${walletData.sol?.toFixed(2) || 0} SOL`,
+              solPercentage: `${walletData.sol_percentage?.toFixed(2) || 0}%`,
+            }));
 
-      // Individual bundle details (sorted by SOL spent, limited to 25)
-      if (analysis.bundles && Object.keys(analysis.bundles).length > 0) {
-        const bundleEntries = Object.entries(analysis.bundles)
-          .sort(([,a], [,b]) => (b.total_sol || 0) - (a.total_sol || 0))
-          .slice(0, 25); // Limit to 25 bundles
+          return {
+            bundleNumber: index + 1,
+            uniqueWallets: bundle.unique_wallets || 0,
+            totalTokens: formatNumber(bundle.total_tokens || 0),
+            totalSol: `${bundle.total_sol?.toFixed(2) || 0} SOL`,
+            tokenPercentage: `${bundle.token_percentage?.toFixed(2) || 0}%`,
+            holdingPercentage: `${bundle.holding_percentage?.toFixed(2) || 0}%`,
+            primaryCategory: bundle.bundle_analysis?.primary_category || "N/A",
+            isLikelyBundle: bundle.bundle_analysis?.is_likely_bundle || false,
+            fundingAnalysis: bundle.funding_analysis ? {
+              trustScore: `${bundle.funding_analysis.funding_trust_score || 'N/A'}/100`,
+              cexFunded: `${bundle.funding_analysis.cex_funded_percentage?.toFixed(2) || '0.00'}%`,
+              mixerFunded: `${bundle.funding_analysis.mixer_funded_percentage?.toFixed(2) || '0.00'}%`,
+            } : null,
+            topWallets,
+          };
+        }),
+        distribution: analysis.distributed_wallets > 0 ? {
+          distributedAmount: formatNumber(analysis.distributed_amount || 0),
+          distributedPercentage: `${analysis.distributed_percentage?.toFixed(2) || 0}%`,
+          distributedWallets: analysis.distributed_wallets || 0,
+          currentHoldingsInBundles: formatNumber(analysis.total_holding_amount || 0),
+          currentHoldingsPercentage: `${analysis.total_holding_percentage?.toFixed(2) || 0}%`,
+        } : null,
+        characteristics: bundleEntries.length > 0 ? {
+          primaryCategory: bundleEntries[0]?.[1]?.bundle_analysis?.primary_category || "new wallet",
+          bundleSizeRange: `2-${Math.max(...bundleEntries.map(([,b]) => b.unique_wallets || 0))} wallets`,
+          bundlePercentageRange: `${Math.min(...bundleEntries.map(([,b]) => b.token_percentage || 0)).toFixed(2)}% - ${Math.max(...bundleEntries.map(([,b]) => b.token_percentage || 0)).toFixed(2)}%`,
+          totalWalletsInBundles: bundleEntries.reduce((sum, [,b]) => sum + (b.unique_wallets || 0), 0),
+        } : null,
+        assessment: {
+          riskLevel: isBundled ? "⚠️ HIGH RISK" : "✅ LOW RISK",
+          recommendation: isBundled 
+            ? `This token shows clear signs of coordinated buying through ${analysis.total_bundles} bundles, with ${analysis.total_percentage_bundled?.toFixed(2)}% of tokens involved in bundle transactions. Exercise extreme caution when trading.`
+            : "No significant bundling activity detected. This appears to be a clean token launch.",
+          keyFindings: [
+            ...(isBundled ? [
+              `${analysis.total_bundles} bundles detected`,
+              `${analysis.total_percentage_bundled?.toFixed(2)}% of supply bundled`,
+              `${analysis.total_sol_spent?.toFixed(2)} SOL spent across bundles`,
+            ] : ["No bundling detected"]),
+            ...(analysis.creator_analysis?.history?.rug_count > 0 ? [
+              `Creator has ${analysis.creator_analysis.history.rug_count} previous rugs`
+            ] : []),
+            ...(analysis.bonded ? ["Token is bonded"] : ["Token is not bonded"]),
+          ],
+        },
+        links: {
+          trenchRadar: `https://trench.bot/bundles/${mintAddress}?all=true`,
+          solscan: `https://solscan.io/token/${mintAddress}`,
+        },
+      };
 
-        summary += `## 🎯 **Individual Bundle Analysis**\n\n`;
-        summary += `Found **${bundleEntries.length}** bundle${bundleEntries.length > 1 ? 's' : ''} (showing top ${Math.min(bundleEntries.length, 25)}):\n\n`;
-
-        bundleEntries.forEach(([bundleId, bundle], index) => {
-          summary += `### **Bundle ${index + 1}**\n\n`;
+      // Generate formatted markdown summary for easy LLM display
+      let bundleDetailsText = "";
+      if (bundleEntries.length > 0) {
+        bundleDetailsText = bundleEntries.map(([bundleId, bundle], index) => {
+          const topWallets = Object.entries(bundle.wallet_info || {})
+            .sort(([,a], [,b]) => (b.sol || 0) - (a.sol || 0))
+            .slice(0, 3);
           
-          // Bundle metrics
-          summary += `| Metric | Value |\n`;
-          summary += `|--------|-------|\n`;
-          summary += `| **Unique Wallets** | ${bundle.unique_wallets} |\n`;
-          summary += `| **Total Tokens Bought** | ${formatNumber(bundle.total_tokens)} |\n`;
-          summary += `| **Total SOL Spent** | ${bundle.total_sol?.toFixed(2)} SOL |\n`;
-          summary += `| **Token Percentage** | ${bundle.token_percentage?.toFixed(2)}% |\n`;
-          summary += `| **Holding Percentage** | ${bundle.holding_percentage?.toFixed(2)}% |\n`;
-          summary += `| **Holding Amount** | ${formatNumber(bundle.holding_amount)} |\n`;
-          
-          if (bundle.slot) {
-            summary += `| **Slot** | ${bundle.slot} |\n`;
-          }
-          summary += `\n`;
+          let walletList = "";
+          topWallets.forEach(([addr, data]) => {
+            walletList += `  - \`${shortenAddress(addr)}\`: ${formatNumber(data.tokens)} tokens (${data.token_percentage?.toFixed(2)}%), ${data.sol?.toFixed(2)} SOL\n`;
+          });
 
-          // Bundle Analysis
-          if (bundle.bundle_analysis) {
-            summary += `**Bundle Analysis:**\n`;
-            summary += `- **Primary Category:** ${bundle.bundle_analysis.primary_category || 'N/A'}\n`;
-            summary += `- **Likely Team Bundle:** ${bundle.bundle_analysis.is_likely_bundle ? 'Yes' : 'No'}\n\n`;
-          }
-
-          // Funding Analysis (compact format)
-          if (bundle.funding_analysis) {
-            const funding = bundle.funding_analysis;
-            summary += `**Funding Analysis:** `;
-            summary += `Trust Score: ${funding.funding_trust_score || 'N/A'}/100, `;
-            summary += `CEX: ${funding.cex_funded_percentage?.toFixed(2) || '0.00'}%, `;
-            summary += `Mixer: ${funding.mixer_funded_percentage?.toFixed(2) || '0.00'}%\n\n`;
-          }
-
-          // Wallet Information
-          if (bundle.wallet_info && Object.keys(bundle.wallet_info).length > 0) {
-            summary += `**Wallet Information:**\n\n`;
-            
-            // Sort wallets by SOL spent (descending)
-            const sortedWallets = Object.entries(bundle.wallet_info)
-              .sort(([,a], [,b]) => (b.sol || 0) - (a.sol || 0));
-
-            sortedWallets.forEach(([walletAddress, walletData]) => {
-              const shortAddress = shortenAddress(walletAddress);
-              summary += `**${shortAddress}** [📊](https://solscan.io/account/${walletAddress})\n`;
-              summary += `- **Tokens Bought:** ${formatNumber(walletData.tokens)} (${walletData.token_percentage?.toFixed(2)}%)\n`;
-              summary += `- **SOL Spent:** ${walletData.sol?.toFixed(2)} SOL (${walletData.sol_percentage?.toFixed(2)}%)\n\n`;
-            });
-          }
-
-          summary += `---\n\n`;
-        });
+          return `**Bundle ${index + 1}:**
+- **Wallets:** ${bundle.unique_wallets}
+- **Total Tokens:** ${formatNumber(bundle.total_tokens || 0)} (${bundle.token_percentage?.toFixed(2)}%)
+- **Total SOL:** ${bundle.total_sol?.toFixed(2)} SOL
+- **Category:** ${bundle.bundle_analysis?.primary_category || "N/A"}
+- **Top Wallets:**
+${walletList}`;
+        }).join("\n\n");
       }
 
-      // Distribution info
-      if (analysis.distributed_wallets > 0) {
-        summary += `## 📈 **Distribution Statistics**\n\n`;
-        summary += `- **Distributed Amount:** ${formatNumber(analysis.distributed_amount)} tokens (${analysis.distributed_percentage?.toFixed(2)}% of supply)\n`;
-        summary += `- **Distributed to:** ${analysis.distributed_wallets} wallets\n`;
-        summary += `- **Current Holdings in Bundles:** ${formatNumber(analysis.total_holding_amount)} tokens (${analysis.total_holding_percentage?.toFixed(2)}% of supply)\n\n`;
-      }
+      const formattedSummary = `# 🔍 Bundle Analysis: ${analysis.ticker || "Unknown"}
 
-      // Bundle Characteristics
-      if (analysis.bundles && Object.keys(analysis.bundles).length > 0) {
-        summary += `## 🔍 **Bundle Characteristics**\n\n`;
-        const bundles = Object.values(analysis.bundles);
-        const avgWallets = bundles.reduce((sum, b) => sum + (b.unique_wallets || 0), 0) / bundles.length;
-        const totalWallets = bundles.reduce((sum, b) => sum + (b.unique_wallets || 0), 0);
-        
-        summary += `- **Most bundles are characterized by:** "${bundles[0]?.bundle_analysis?.primary_category || 'new wallet'}" categories\n`;
-        summary += `- **Bundle sizes vary from:** 2-${Math.max(...bundles.map(b => b.unique_wallets || 0))} wallets per bundle\n`;
-        summary += `- **Individual bundle percentages range from:** ~${Math.min(...bundles.map(b => b.token_percentage || 0)).toFixed(2)}% to ~${Math.max(...bundles.map(b => b.token_percentage || 0)).toFixed(2)}% of total supply\n\n`;
-      }
+## 📊 **Bundle Detection Summary**
 
-      // Final assessment
-      summary += `## 🎯 **Final Assessment**\n\n`;
-      if (isBundled) {
-        summary += `⚠️ **This token shows clear signs of coordinated buying through multiple bundles, with over ${analysis.total_percentage_bundled?.toFixed(2)}% of the tokens being involved in bundle transactions.** `;
-        
-        if (analysis.creator_analysis?.history?.rug_count > 0) {
-          summary += `While the creator's history shows low risk, the high percentage of bundled tokens suggests potential price manipulation risk. `;
-        }
-        
-        summary += `Users should exercise caution when trading this token.\n\n`;
-      } else {
-        summary += `✅ **Good News:** No significant bundling activity detected for this token.\n\n`;
-      }
+| Metric                | Value         |
+|-----------------------|--------------|
+| **Bundle Status**     | ${isBundled ? "🚨 BUNDLED" : "✅ Clean"} |
+| **Ticker**            | ${analysis.ticker || "Unknown"} |
+| **Total Bundles**     | ${analysis.total_bundles || 0} |
+| **Total SOL Spent**   | ${analysis.total_sol_spent?.toFixed(2) || 0} SOL |
+| **Bundled Total**     | ${analysis.total_percentage_bundled?.toFixed(2) || 0}% |
+| **Held Percentage**   | ${analysis.total_holding_percentage?.toFixed(2) || 0}% |
+| **Held Tokens**       | ${analysis.total_holding_amount ? formatNumber(analysis.total_holding_amount) : "N/A"} |
+| **Bonded**            | ${analysis.bonded ? "Yes" : "No"} |
+| **Source**            | [TrenchRadar](https://trench.bot/bundles/${mintAddress}?all=true) |
 
-      summary += `**Mint Address:** \`${mintAddress}\`\n`;
-      summary += `**Analysis Source:** [TrenchRadar Bundle Analysis](https://trench.bot/bundles/${mintAddress}?all=true)`;
+${analysis.creator_analysis ? `## 👤 **Creator Analysis**
+
+| Metric                | Value         |
+|-----------------------|--------------|
+| **Creator Address**   | \`${analysis.creator_analysis.address}\` |
+| **Risk Level**        | ${analysis.creator_analysis.risk_level || "Unknown"} |
+| **Current Holdings**  | ${analysis.creator_analysis.current_holdings || 0} tokens |
+| **Previous Coins Created** | ${analysis.creator_analysis.history?.total_coins_created || 0} |
+| **Rug History**       | ${analysis.creator_analysis.history?.rug_count || 0} rugs |
+| **Current Holdings**  | ${analysis.creator_analysis.holding_percentage?.toFixed(2) || 0}% |
+
+` : ""}${bundleEntries.length > 0 ? `## 🎯 **Individual Bundle Analysis**
+
+Found **${analysis.total_bundles}** bundles (showing top ${bundleEntries.length}):
+
+${bundleDetailsText}
+
+## 🔍 **Bundle Characteristics**
+
+- **Most bundles are characterized by:** "${bundleEntries[0]?.[1]?.bundle_analysis?.primary_category || "new wallet"}"
+- **Bundle sizes vary from:** 2-${Math.max(...bundleEntries.map(([,b]) => b.unique_wallets || 0))} wallets per bundle
+- **Individual bundle percentages range from:** ~${Math.min(...bundleEntries.map(([,b]) => b.token_percentage || 0)).toFixed(2)}% to ~${Math.max(...bundleEntries.map(([,b]) => b.token_percentage || 0)).toFixed(2)}% of total supply
+
+` : ""}## 🎯 **Final Assessment**
+
+⚠️ **${isBundled ? "HIGH RISK" : "LOW RISK"}**
+
+${isBundled 
+  ? `This token shows clear signs of coordinated buying through ${analysis.total_bundles} bundles, with ${analysis.total_percentage_bundled?.toFixed(2)}% of tokens involved in bundle transactions. Exercise extreme caution when trading.`
+  : "No significant bundling activity detected. This appears to be a clean token launch."}
+
+**Mint Address:** \`${mintAddress}\`  
+**Analysis Source:** [TrenchRadar Bundle Analysis](https://trench.bot/bundles/${mintAddress}?all=true)`;
 
       return {
         isBundled,
@@ -360,10 +532,27 @@ export const bundleChecker = createTool({
         bonded: analysis.bonded || false,
         creatorRiskLevel: analysis.creator_analysis?.risk_level || "Unknown",
         rugCount: analysis.creator_analysis?.history?.rug_count || 0,
-        summary: "```markdown\n" + summary + "\n```",
+        summary: structuredSummary,
+        formattedSummary: formattedSummary,
       };
 
     } catch (error: any) {
+      const errorSummary = `# 🔍 Bundle Analysis: Error
+
+## 📊 **Bundle Detection Summary**
+
+| Metric                | Value         |
+|-----------------------|--------------|
+| **Bundle Status**     | ❌ Error |
+| **Error**             | ${error?.response?.data?.error || error.message || "Unable to fetch bundle data"} |
+
+## 🎯 **Final Assessment**
+
+⚠️ **Analysis failed. Please make sure this is a pump.fun token.**
+
+**Mint Address:** \`${mintAddress}\`  
+**Analysis Source:** [TrenchRadar Bundle Analysis](https://trench.bot/bundles/${mintAddress}?all=true)`;
+
       return {
         isBundled: false,
         ticker: "Unknown",
@@ -374,8 +563,33 @@ export const bundleChecker = createTool({
         bonded: false,
         creatorRiskLevel: "Unknown",
         rugCount: 0,
-        summary: `Error analyzing bundles: ${error?.response?.data?.error || error.message || "Unable to fetch bundle data. Please make sure this is a pump.fun token."}`,
-  };
+        summary: {
+          bundleStatus: "❌ Error",
+          ticker: "Unknown",
+          metrics: {
+            totalBundles: 0,
+            totalSolSpent: "0 SOL",
+            bundledPercentage: "0%",
+            heldPercentage: "0%",
+            heldTokens: "N/A",
+            bonded: "No",
+          },
+          creator: null,
+          bundles: [],
+          distribution: null,
+          characteristics: null,
+          assessment: {
+            riskLevel: "Unknown",
+            recommendation: `Error analyzing bundles: ${error?.response?.data?.error || error.message || "Unable to fetch bundle data. Please make sure this is a pump.fun token."}`,
+            keyFindings: ["Analysis failed"],
+          },
+          links: {
+            trenchRadar: `https://trench.bot/bundles/${mintAddress}?all=true`,
+            solscan: `https://solscan.io/token/${mintAddress}`,
+          },
+        },
+        formattedSummary: errorSummary,
+      };
     }
   },
 });
