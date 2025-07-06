@@ -360,7 +360,7 @@ export const bundleChecker = createTool({
         bonded: analysis.bonded || false,
         creatorRiskLevel: analysis.creator_analysis?.risk_level || "Unknown",
         rugCount: analysis.creator_analysis?.history?.rug_count || 0,
-        summary,
+        summary: "```markdown\n" + summary + "\n```",
       };
 
     } catch (error: any) {
