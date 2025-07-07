@@ -4,6 +4,42 @@ import axios from "axios";
 
 const HELIUS_RPC = process.env.HELIUS_RPC || "https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY";
 
+// Manual mapping for well-known collections when API fails
+const KNOWN_COLLECTION_MAPPINGS: Record<string, string> = {
+  // DeGods
+  'HZ4sRKiMPYh67n8fAjmHCnGnwhZfiKgXo1xJM6kNozZ8': 'degods',
+  // y00ts  
+  'FJTYE1VNxcn5U563DjAxrhZvGBN8KBcKHDWBwGbRQT7T': 'y00ts',
+  // Add more as needed
+};
+
+// Collection name to slug mapping
+const COLLECTION_NAME_TO_SLUG: Record<string, string> = {
+  'degods': 'degods',
+  'y00ts': 'y00ts', 
+  'claynosaurz': 'claynosaurz',
+  'okay bears': 'okay_bears',
+  'solana monkey business': 'solana_monkey_business',
+  'degenerate ape academy': 'degenerate_ape_academy',
+  'famous fox federation': 'famous_fox_federation',
+  'thugbirdz': 'thugbirdz',
+  'aurory': 'aurory',
+  'shadowy super coder': 'shadowy_super_coder',
+  'solpunks': 'solpunks',
+  'galactic geckos': 'galactic_geckos',
+  'degen fat cats': 'degenfatcats',
+  'bodoggos': 'bodoggos',
+  'raccs': 'raccsnft',
+  'taiyo pilots': 'taiyopilots',
+  'whale riders': 'whale_riders',
+  'snipies': 'snipies',
+  'rarikeys': 'rarikeys',
+  'the lowlifes': 'the_lowlifes',
+  'shadow': 'shadow__',
+  'sol arena': 'sol_arena_challengers',
+  'crypto cavemen club': 'crypto_cavemen_club',
+};
+
 interface CollectionStats {
   floorPrice?: number;
   listedCount?: number;
@@ -59,17 +95,59 @@ function extractWalletAddress(args: any): string | null {
 
 // Get Magic Eden collection slug from NFT mint
 async function getMagicEdenCollectionSlug(nftMint: string): Promise<string | null> {
+  // Check manual mapping first
+  if (KNOWN_COLLECTION_MAPPINGS[nftMint]) {
+    console.log(`Using manual mapping for ${nftMint}: ${KNOWN_COLLECTION_MAPPINGS[nftMint]}`);
+    return KNOWN_COLLECTION_MAPPINGS[nftMint];
+  }
+  
   try {
+    console.log(`Attempting to get collection slug for NFT: ${nftMint}`);
+    
+    // Method 1: Try the token endpoint
     const response = await axios.get(`https://api-mainnet.magiceden.dev/v2/tokens/${nftMint}`, {
       timeout: 5000,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; NFT-Portfolio-Tool/1.0)',
+        'Accept': 'application/json',
       }
     });
     
-    return response.data?.collection || null;
+    console.log(`Magic Eden response for ${nftMint}:`, JSON.stringify(response.data, null, 2));
+    
+    // Try multiple possible fields for collection slug
+    const collectionSlug = response.data?.collection || 
+                          response.data?.collectionSymbol || 
+                          response.data?.collectionName?.toLowerCase().replace(/\s+/g, '_') ||
+                          null;
+    
+    if (collectionSlug) {
+      console.log(`Found collection slug: ${collectionSlug}`);
+      return collectionSlug;
+    } else {
+      console.log(`No collection slug found in response for ${nftMint}`);
+    }
+    
+    // Method 2: Try alternative endpoint if first method fails
+    console.log(`Trying alternative method for ${nftMint}`);
+    const altResponse = await axios.get(`https://api-mainnet.magiceden.dev/v2/tokens/${nftMint}/activities`, {
+      timeout: 5000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NFT-Portfolio-Tool/1.0)',
+        'Accept': 'application/json',
+      }
+    });
+    
+    // Check if activities contain collection info
+    const activities = altResponse.data || [];
+    if (activities.length > 0 && activities[0].collection) {
+      console.log(`Found collection slug from activities: ${activities[0].collection}`);
+      return activities[0].collection;
+    }
+    
+    return null;
   } catch (error) {
-    console.log(`Failed to get collection slug for ${nftMint}:`, error.message);
+    console.log(`Failed to get collection slug for ${nftMint}:`, error.response?.status, error.response?.data || error.message);
     return null;
   }
 }
@@ -140,7 +218,7 @@ export const getNFTPortfolio = createTool({
     }
 
     try {
-      // Fetch only NFTs (exclude compressed NFTs and SPL tokens)
+      // Fetch only NFTs to reduce initial load
       const heliusRes = await axios.post(
         HELIUS_RPC,
         {
@@ -155,6 +233,7 @@ export const getNFTPortfolio = createTool({
               showInscription: false,
               showCollectionMetadata: true,
             },
+            limit: 1000, // Add limit to prevent massive responses
           },
         },
         { 
@@ -165,18 +244,63 @@ export const getNFTPortfolio = createTool({
 
       const items = heliusRes.data?.result?.items || [];
 
-      // Filter out compressed NFTs (cNFTs) - keep only regular NFTs
-      const regularNFTs = items.filter((item: any) => {
-        // Only include V1_NFT and ProgrammableNFT interfaces
-        const isValidInterface = item.interface === "V1_NFT" || item.interface === "ProgrammableNFT";
+      console.log(`Total items from Helius: ${items.length}`);
+      
+      // IMMEDIATE FILTERING: Remove Lucky Emmy NFTs first to reduce processing load
+      const withoutLuckyEmmy = items.filter((item: any) => {
+        const nftName = item.content?.metadata?.name || '';
+        const isLuckyEmmy = nftName.toLowerCase().includes('lucky emmy');
+        if (isLuckyEmmy) {
+          console.log(`Filtered out Lucky Emmy: ${nftName}`);
+        }
+        return !isLuckyEmmy;
+      });
+      
+      console.log(`After Lucky Emmy filter: ${withoutLuckyEmmy.length} items (removed ${items.length - withoutLuckyEmmy.length} Lucky Emmy NFTs)`);
+      
+      // SECONDARY FILTERING: Apply quality filters to remaining items
+      const regularNFTs = withoutLuckyEmmy.filter((item: any) => {
+        const nftName = item.content?.metadata?.name || '';
         
-        // Exclude compressed NFTs
-        const isNotCompressed = !item.compression?.compressed;
+        // Has NFT-like metadata (name, image, or collection info)
+        const hasNFTMetadata = item.content?.metadata?.name || 
+                              item.content?.links?.image ||
+                              item.grouping?.length > 0;
         
-        return isValidInterface && isNotCompressed;
+        // Valid NFT interfaces - NOW INCLUDING Custom for y00ts and other legitimate NFTs
+        const validInterface = item.interface === "V1_NFT" || 
+                              item.interface === "ProgrammableNFT" ||
+                              item.interface === "MplCoreAsset" ||
+                              item.interface === "Custom";
+        
+        // Not compressed NFTs (cNFTs are usually spam/airdrops)
+        const notCompressedSpam = !item.compression?.compressed;
+        
+        // Filter out obvious spam patterns
+        const notSpam = !nftName.toLowerCase().includes('airdrop') &&
+                       !nftName.toLowerCase().includes('free mint') &&
+                       !nftName.toLowerCase().includes('claim');
+        
+        const isValid = hasNFTMetadata && 
+                       validInterface && 
+                       notCompressedSpam && 
+                       notSpam;
+        
+        // Log filtered items for debugging
+        if (!isValid) {
+          const reason = !hasNFTMetadata ? 'No metadata' :
+                        !validInterface ? `Invalid interface: ${item.interface}` :
+                        !notCompressedSpam ? 'Compressed NFT' :
+                        !notSpam ? 'Spam pattern detected' : 'Unknown';
+          console.log(`Filtered out: ${nftName || item.id} - Reason: ${reason}`);
+        } else if (item.interface === "Custom") {
+          console.log(`Including Custom NFT: ${nftName} (${item.id})`);
+        }
+        
+        return isValid;
       });
 
-      console.log(`Found ${regularNFTs.length} regular NFTs out of ${items.length} total items`);
+      console.log(`Found ${regularNFTs.length} NFTs out of ${items.length} total items`);
 
       // Process NFTs with essential data only
       const processedNFTs = regularNFTs.map((nft: any) => {
@@ -233,7 +357,15 @@ export const getNFTPortfolio = createTool({
           const firstNftMint = collectionData.nfts[0].id;
           console.log(`Getting collection slug for ${collectionName} using NFT ${firstNftMint}`);
           
-          const collectionSlug = await getMagicEdenCollectionSlug(firstNftMint);
+          let collectionSlug = await getMagicEdenCollectionSlug(firstNftMint);
+          
+          // If API fails, try to derive from collection name
+          if (!collectionSlug && collectionName) {
+            const normalizedName = collectionName.toLowerCase().trim();
+            collectionSlug = COLLECTION_NAME_TO_SLUG[normalizedName] || 
+                           normalizedName.replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+            console.log(`Derived collection slug from name "${collectionName}": ${collectionSlug}`);
+          }
           
           if (collectionSlug) {
             console.log(`Found collection slug: ${collectionSlug}`);

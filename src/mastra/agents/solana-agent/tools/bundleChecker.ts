@@ -468,7 +468,7 @@ export const bundleChecker = createTool({
         
           let walletList = "";
           topWallets.forEach(([addr, data]) => {
-            walletList += `    • ${shortenAddress(addr)}: ${formatNumber(data.tokens)} tokens (${data.token_percentage?.toFixed(2)}%), ${data.sol?.toFixed(2)} SOL\n`;
+            walletList += `      ${shortenAddress(addr)}: ${formatNumber(data.tokens)} tokens (${data.token_percentage?.toFixed(2)}%), ${data.sol?.toFixed(2)} SOL\n`;
           });
 
           return `**Bundle ${index + 1}:**
