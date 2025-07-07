@@ -1,18 +1,21 @@
 import dotenv from "dotenv";
-import { createOllama } from "ollama-ai-provider";
+import { openai } from "@ai-sdk/openai";
 
 // Load environment variables once at the beginning
 dotenv.config();
 
 // Export all your environment variables
-// Defaults to Ollama qwen2.5:1.5b
-// https://ollama.com/library/qwen2.5
-export const modelName = process.env.MODEL_NAME_AT_ENDPOINT ?? "qwen2.5:1.5b";
-export const baseURL = process.env.API_BASE_URL ?? "http://127.0.0.1:11434/api";
+// Now using OpenAI GPT models instead of Ollama
+export const modelName = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+export const apiKey = process.env.OPENAI_API_KEY;
 
-// Create and export the model instance
-export const model = createOllama({ baseURL }).chat(modelName, {
-  simulateStreaming: true,
+if (!apiKey) {
+  throw new Error("OPENAI_API_KEY environment variable is required");
+}
+
+// Create and export the model instance using OpenAI
+export const model = openai(modelName, {
+  apiKey: apiKey,
 });
 
-console.log(`ModelName: ${modelName}\nbaseURL: ${baseURL}`);
+console.log(`Using OpenAI Model: ${modelName}`);

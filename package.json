@@ -29,7 +29,6 @@
     "@mastra/memory": "^0.10.3",
     "axios": "^1.10.0",
     "dotenv": "^16.5.0",
-    "ollama-ai-provider": "^1.2.0",
     "openai": "^5.8.2",
     "zod": "^3.25.67"
   },
