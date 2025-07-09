@@ -9,37 +9,27 @@ const RPC_URL = process.env.HELIUS_RPC || "https://api.mainnet-beta.solana.com";
 // Helper function to extract SOL amount and recipient address from user input
 function parseTransactionCommand(input: string): { amount: number; recipient: string } | null {
   console.log("🔍 Parsing transaction command:", input);
-  
-  // Normalize input to lowercase for pattern matching, but preserve original for address extraction
-  const normalizedInput = input.toLowerCase().trim();
-  
-  // Patterns to match various send commands
+
   const patterns = [
-    /send\s+(\d+(?:\.\d+)?)\s+sol\s+to\s+([1-9A-HJ-NP-Za-km-z]{32,44})/,
-    /transfer\s+(\d+(?:\.\d+)?)\s+sol\s+to\s+([1-9A-HJ-NP-Za-km-z]{32,44})/,
-    /pay\s+(\d+(?:\.\d+)?)\s+sol\s+to\s+([1-9A-HJ-NP-Za-km-z]{32,44})/,
+    /send\s+(\d+(?:\.\d+)?)\s+sol\s+to\s+([1-9A-HJ-NP-Za-km-z]{32,44})/i,
+    /transfer\s+(\d+(?:\.\d+)?)\s+sol\s+to\s+([1-9A-HJ-NP-Za-km-z]{32,44})/i,
+    /pay\s+(\d+(?:\.\d+)?)\s+sol\s+to\s+([1-9A-HJ-NP-Za-km-z]{32,44})/i,
   ];
-  
+
   for (const pattern of patterns) {
     console.log("🔍 Testing pattern:", pattern.toString());
-    // Test against normalized input but extract from original to preserve address case
-    const normalizedMatch = normalizedInput.match(pattern);
-    if (normalizedMatch) {
-      // Now extract from original input to preserve proper address casing
-      const originalMatch = input.trim().match(/(\d+(?:\.\d+)?)\s+sol\s+to\s+([1-9A-HJ-NP-Za-km-z]{32,44})/i);
-      if (originalMatch) {
-        console.log("✅ Pattern matched:", originalMatch);
-        const amount = parseFloat(originalMatch[1]);
-        const recipient = originalMatch[2];
-        
-        if (amount > 0 && recipient) {
-          console.log("✅ Valid transaction parsed:", { amount, recipient });
-          return { amount, recipient };
-        }
+    const match = input.match(pattern);
+    if (match) {
+      console.log("✅ Pattern matched:", match);
+      const amount = parseFloat(match[1]);
+      const recipient = match[2];
+      if (amount > 0 && recipient) {
+        console.log("✅ Valid transaction parsed:", { amount, recipient });
+        return { amount, recipient };
       }
     }
   }
-  
+
   console.log("❌ No pattern matched for input:", input);
   return null;
 }
