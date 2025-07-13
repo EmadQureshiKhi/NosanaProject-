@@ -4,10 +4,6 @@ FROM ollama/ollama:0.7.0
 ENV API_BASE_URL=http://127.0.0.1:11434/api
 ENV MODEL_NAME_AT_ENDPOINT=qwen2.5:1.5b
 
-# Qwen2.5:32b = Docker
-# ENV API_BASE_URL=http://127.0.0.1:11434/api
-# ENV MODEL_NAME_AT_ENDPOINT=qwen2.5:32b
-
 # Install system dependencies and Node.js
 RUN apt-get update && apt-get install -y \
   curl \
@@ -19,8 +15,11 @@ RUN apt-get update && apt-get install -y \
 # Create app directory
 WORKDIR /app
 
-# Copy package files
-COPY .env.docker package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml ./
+# Copy the .env file and rename it to .env inside the container
+
+
+
 
 # Install dependencies
 RUN pnpm install
@@ -28,11 +27,9 @@ RUN pnpm install
 # Copy the rest of the application
 COPY . .
 
-# Build the project
-RUN pnpm run build
-
 # Override the default entrypoint
 ENTRYPOINT ["/bin/sh", "-c"]
 
-# Start Ollama service and pull the model, then run the app
-CMD ["ollama serve & sleep 5 && ollama pull ${MODEL_NAME_AT_ENDPOINT} && node .mastra/output/index.mjs"]
+
+# Start Ollama service and pull the model, then run the app in dev mode for Playground
+CMD ["ollama serve & sleep 5 && ollama pull ${MODEL_NAME_AT_ENDPOINT} && pnpm dev"]

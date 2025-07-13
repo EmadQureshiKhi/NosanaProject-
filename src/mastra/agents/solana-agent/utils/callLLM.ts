@@ -1,19 +1,18 @@
-import OpenAI from "openai";
-
-// Make sure to set OPENAI_API_KEY in your .env file
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { generateText } from "ai";
+import { model } from "../../../config"; // Fixed import path
 
 export async function callLLM(prompt: string): Promise<string> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o", // or "gpt-3.5-turbo" if you prefer
-    messages: [
-      { role: "system", content: "You are a Solana token expert. Write concise, friendly, and accurate token descriptions." },
-      { role: "user", content: prompt }
-    ],
-    max_tokens: 120,
-    temperature: 0.7,
-  });
-  return response.choices[0].message.content?.trim() || "";
+  try {
+    const { text } = await generateText({
+      model: model,
+      prompt: prompt,
+      system: "You are a Solana token expert. Write concise, friendly, and accurate token descriptions.",
+      maxTokens: 120,
+      temperature: 0.7,
+    });
+    return text.trim() || "";
+  } catch (error) {
+    console.error("Error calling LLM:", error);
+    return "Unable to generate description at this time.";
+  }
 }

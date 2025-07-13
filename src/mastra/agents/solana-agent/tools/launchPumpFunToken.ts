@@ -139,9 +139,9 @@ export const launchPumpFunToken = createTool({
       symbol: tokenTicker,
       description,
       metadataUrl: imageUrl, // <-- this is the fix!
-      initialBuy: options.initialLiquiditySOL || 0.1,
-      slippage: options.slippage || 5,
-      priorityFee: options.priorityFee || 0.001,
+      initialBuy: options.initialLiquiditySOL,
+      slippage: options.slippage,
+      priorityFee: options.priorityFee,
     };
 
     // Debug log for config

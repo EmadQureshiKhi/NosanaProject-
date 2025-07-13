@@ -10,34 +10,7 @@ const knownTokenDescriptions: Record<string, string> = {
 
 export const searchToken = createTool({
   id: "searchToken",
-  description: `Search for a Solana token by name, symbol, or address using Jupiter's verified token list. 
-
-CRITICAL: When displaying results from this tool, you MUST use this EXACT format template:
-
-**{Token Name} ({Symbol})**
-
-**Mint Address:** \`{mint_address}\`
-
-> {description_paragraph}
-
-**Type:** SPL Token (Solana)  
-**Symbol:** {symbol}  
-**24h Volume:** {volume_or_N/A}  
-
-**View on Solscan:** https://solscan.io/token/{mint_address}
-
-{logo_line_if_available}
-
----
-
-Would you like to:
-- Get current price information for **{symbol}**?
-- Swap tokens for **{symbol}**?
-- Learn about specific metrics like volume or market cap?
-
-_Just let me know what specific information you'd like to know about **{symbol}**._
-
-NEVER deviate from this template. Replace {placeholders} with actual data. This formatting rule ONLY applies to searchToken results, not other tools.`,
+  description: `Search for a Solana token by name, symbol, or address using Jupiter's verified token list. `,
   inputSchema: z.object({
     query: z.string().min(1).describe("Token name, symbol, or address to search"),
   }),

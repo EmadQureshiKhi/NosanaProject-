@@ -9,6 +9,7 @@
     "dev": "mastra dev",
     "build": "mastra build",
     "start": "mastra start",
+    "test:workflows": "npx tsx src/test-workflows.ts",
     "lint": "biome lint ./src",
     "format": "biome format ./src/** --write",
     "check": "biome check ./src"
@@ -27,10 +28,13 @@
     "@mastra/libsql": "^0.10.2",
     "@mastra/loggers": "^0.10.2",
     "@mastra/memory": "^0.10.3",
+    "@mayanfinance/swap-sdk": "^10.9.0",
     "@solana/web3.js": "^1.98.2",
+    "ai": "^4.3.17",
     "axios": "^1.10.0",
     "bs58": "^6.0.0",
     "dotenv": "^16.5.0",
+    "ollama-ai-provider": "^1.2.0",
     "openai": "^5.8.2",
     "pump-fun-token-launcher-nokitha": "^1.0.1",
     "zod": "^3.25.67"
