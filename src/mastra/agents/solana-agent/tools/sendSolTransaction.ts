@@ -167,8 +167,8 @@ async function executeTransaction(command: string, parsed: { amount: number; rec
 
 ⚠️  **PLEASE REVIEW ALL DETAILS CAREFULLY BEFORE CONFIRMING**
 
-🟢 **To CONFIRM this transaction, type:**  \`yes\` or \`y\`\n
-🔴 **To CANCEL this transaction, type:**   \`no\` or \`n\`
+🟢 **To CONFIRM this transaction, type:**  \`confirm transaction\` or \`yes transaction\`
+🔴 **To CANCEL this transaction, type:**   \`cancel transaction\` or \`no transaction\`
 
 ═══════════════════════════════════════════════════════════════
 `.trim();

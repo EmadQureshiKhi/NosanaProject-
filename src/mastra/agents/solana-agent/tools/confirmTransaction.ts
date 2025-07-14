@@ -19,10 +19,25 @@ function parseConfirmationCommand(input: string): { amount: number; recipient: s
   
   // Check for simple yes/no confirmation first
   const normalizedInput = input.toLowerCase().trim();
-  if (normalizedInput === "yes" || normalizedInput === "y" || normalizedInput === "confirm") {
+  if (normalizedInput === "confirm transaction" || 
+      normalizedInput === "yes transaction" ||
+      normalizedInput === "confirm send" ||
+      normalizedInput === "yes" || 
+      normalizedInput === "y" || 
+      normalizedInput === "confirm") {
     console.log("✅ Simple confirmation detected:", normalizedInput);
     // Return a special marker that indicates we need to get transaction details from context
     return { amount: -1, recipient: "SIMPLE_CONFIRMATION" };
+  }
+  
+  if (normalizedInput === "cancel transaction" || 
+      normalizedInput === "no transaction" ||
+      normalizedInput === "cancel send" ||
+      normalizedInput === "no" || 
+      normalizedInput === "n") {
+    console.log("✅ Simple cancellation detected:", normalizedInput);
+    // Return a special marker for cancellation
+    return { amount: -2, recipient: "SIMPLE_CANCELLATION" };
   }
   
   // Pattern to match full confirmation commands (fallback)
@@ -154,7 +169,7 @@ export const confirmTransaction = createTool({
       console.log("❌ Failed to parse confirmation command");
       return {
         success: false,
-        message: `❌ Invalid confirmation. Please type "yes" or "no" to confirm or cancel the transaction.\n\nReceived: "${finalCommand}"`,
+        message: `❌ Invalid confirmation. Please type "confirm transaction" or "cancel transaction" to proceed.\n\nReceived: "${finalCommand}"`,
       };
     }
     
@@ -176,6 +191,16 @@ export const confirmTransaction = createTool({
       
       // Clear the pending transaction
       pendingTransaction = null;
+    }
+    
+    // Handle simple cancellation
+    if (amount === -2 && recipient === "SIMPLE_CANCELLATION") {
+      // Clear the pending transaction
+      pendingTransaction = null;
+      return {
+        success: false,
+        message: "🚫 **TRANSACTION CANCELLED**\n\nThe SOL transaction has been cancelled. No transaction was executed.",
+      };
     }
     
     // Validate recipient address
