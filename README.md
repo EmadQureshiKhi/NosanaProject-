@@ -24,6 +24,7 @@ The Solana AI Agent is a sophisticated blockchain assistant that can:
 - **🐦 Twitter/X:** [@thecorgod1234](https://x.com/thecorgod1234)
 - **🌐 Nosana Deployment:** [Live Agent](https://dashboard.nosana.com/jobs/Dy5QeeVVk3XnwNaVvgWZ93LHRWoX6CeUF3d4hFZpexr4)
 - **🐳 Docker Hub:** `docker pull thecorgod/agent-challenge:latest`
+- - **🐦 My Tweet:** [Check it out here](https://x.com/thecorgod1234/status/1944694271396745432)
 
 ## 🛠️ Technology Stack
 
