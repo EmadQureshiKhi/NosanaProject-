@@ -8,15 +8,44 @@ This project is a comprehensive Solana blockchain AI agent built for the **Nosan
 
 ### 🎯 What This Agent Does
 
-The Solana AI Agent is a sophisticated blockchain assistant that can:
-- **Search and analyze tokens** with real-time price data and market metrics
-- **Manage wallet portfolios** with detailed balance tracking and validation
-- **Execute token swaps** using Jupiter Exchange with confirmation workflows
-- **Launch new tokens** on Pump.fun with complete parameter validation
-- **Perform cross-chain swaps** using Mayan Finance for bridging assets
-- **Analyze bundle activity** to detect coordinated buying and sniper behavior
-- **Track NFT collections** with floor price data and collection statistics
-- **Send SOL transactions** with secure confirmation processes
+Our **Solana AI Agent** is a sophisticated blockchain assistant that can:
+
+- 🔍 **Search & Analyze Tokens**  
+  Leverages Jupiter's verified token list and integrates with DexScreener to provide comprehensive token profiles, including live price feeds, market cap, 24h trading volume, liquidity, and detailed price change analytics (24h, 6h, 1h, 5m). Stay updated with granular market insights.
+
+- 💼 **Manage Wallet Portfolios**  
+  Utilizes Helius's `searchAssets` API to fetch all fungible tokens and native SOL holdings with accurate USD valuations. Filters out dust and validates token prices to prevent misrepresentation from illiquid or scam tokens, giving you a true financial overview. 
+
+- 🔄 **Execute Token Swaps**  
+  Integrates with Jupiter Exchange’s DEX aggregator to find optimal trading routes and best prices across Solana liquidity pools. Features a secure multi-step confirmation process with pre-trade analysis, slippage protection, and explicit user approval for transparent trades. 
+
+- 🚀 **Launch New Tokens**  
+  Automates token creation on Pump.fun with full parameter validation — including token name, ticker, description, and image URL (with content-type checks). Provides real-time cost estimates and uniqueness checks to avoid clashes, streamlining SPL token deployment. 
+
+- 🌉 **Perform Cross-Chain Swaps**  
+  Enables seamless asset transfers between Solana and EVM chains (Ethereum, BSC, Polygon, Arbitrum, Optimism, Base) using Mayan Finance’s auction-based protocol and Wormhole infrastructure. Offers detailed fee breakdowns for robust cross-chain interoperability. 
+
+- 🕵️‍♂️ **Analyze Bundle Activity**  
+  Detects coordinated buying and sniper behavior by integrating Trench.bot’s advanced analytics. Identifies MEV, sandwich attacks, creator risk, rug pull indicators, and provides detailed bundle summaries for critical security insights. 
+
+- 🎨 **Track NFT Collections**  
+  Connects with Magic Eden’s API to retrieve NFT portfolio data including collection names, floor prices, and estimated total values. Filters out spam and compressed NFTs (cNFTs) for a clean, accurate asset overview. 
+
+- 💸 **Send SOL Transactions**  
+  Implements a secure transaction flow with real-time balance checks, precise fee estimations, and mandatory explicit user confirmation. Ensures all SOL transfers are transparent and user-approved, minimizing risks.
+
+---
+
+### 🔐 Confirmation Tools
+
+For enhanced security and user control, the agent includes **confirmation tools** for every critical action:
+
+- ✅ Explicit confirmation for **sending SOL transactions**  
+- ✅ Multi-step approval process for **token swaps**  
+- ✅ Secure confirmation workflows for **cross-chain swaps (bridges)**
+
+These tools ensure transparency and minimize risks by requiring user consent before executing sensitive operations.
+
 
 ## 🔗 Links
 
