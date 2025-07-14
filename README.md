@@ -8,7 +8,7 @@ This project is a comprehensive Solana blockchain AI agent built for the **Nosan
 
 ### 🎯 What This Agent Does
 
-Our Solana AI Agent is a sophisticated blockchain assistant that can:
+The Solana AI Agent is a sophisticated blockchain assistant that can:
 - **Search and analyze tokens** with real-time price data and market metrics
 - **Manage wallet portfolios** with detailed balance tracking and validation
 - **Execute token swaps** using Jupiter Exchange with confirmation workflows
